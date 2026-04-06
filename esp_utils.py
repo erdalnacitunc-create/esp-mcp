@@ -53,7 +53,8 @@ def get_export_script(idf_path: str = None) -> str:
     Returns:
         str: Path to the export script
     """
-    return os.path.join(get_esp_idf_dir(idf_path), "export.sh")
+    script_name = "export.bat" if os.name == "nt" else "export.sh"
+    return os.path.join(get_esp_idf_dir(idf_path), script_name)
 
 def check_esp_idf_installed(idf_path: str = None) -> bool:
     """Check if ESP-IDF is installed

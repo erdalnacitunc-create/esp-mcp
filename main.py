@@ -39,8 +39,13 @@ async def build_esp_project(project_path: str, idf_path: str = None, sdkconfig_d
     else:
         build_cmd = "idf.py build"
 
-    # Use double quotes for the outer command to allow single quotes in build_cmd
-    returncode, stdout, stderr = await run_command_async(f'bash -c "source {export_script} && {build_cmd}"')
+    # Use OS specific command chaining
+    if os.name == 'nt':
+        cmd_wrapper = f'cmd.exe /c "{export_script} && {build_cmd}"'
+    else:
+        cmd_wrapper = f'bash -c "source {export_script} && {build_cmd}"'
+        
+    returncode, stdout, stderr = await run_command_async(cmd_wrapper)
 
     # Calculate elapsed time
     elapsed_time = time.time() - start_time
@@ -77,7 +82,10 @@ async def setup_project_esp_target(project_path: str, target: str, idf_path: str
     processed_idf_path = idf_path if (idf_path and idf_path.strip()) else None
     logging.warning(f"processed_idf_path={processed_idf_path}")
     export_script = get_export_script(processed_idf_path)
-    returncode, stdout, stderr = await run_command_async(f"bash -c 'source {export_script} && idf.py set-target {target}'")
+    if os.name == 'nt':
+        returncode, stdout, stderr = await run_command_async(f'cmd.exe /c "{export_script} && idf.py set-target {target}"')
+    else:
+        returncode, stdout, stderr = await run_command_async(f"bash -c 'source {export_script} && idf.py set-target {target}'")
     open('mcp-set-target.log', 'w+').write(str((stdout, stderr)))
     logging.warning(f"build result {stdout} {stderr}")
     return stdout, stderr
@@ -99,7 +107,10 @@ async def create_esp_project(project_path: str, project_name: str) -> Tuple[str,
     os.makedirs(project_path, exist_ok=True)
     os.chdir(project_path)
     export_script = get_export_script()
-    returncode, stdout, stderr = await run_command_async(f"bash -c 'source {export_script} && idf.py create-project --path {project_path} {project_name}'")
+    if os.name == 'nt':
+        returncode, stdout, stderr = await run_command_async(f'cmd.exe /c "{export_script} && idf.py create-project --path {project_path} {project_name}"')
+    else:
+        returncode, stdout, stderr = await run_command_async(f"bash -c 'source {export_script} && idf.py create-project --path {project_path} {project_name}'")
     open('mcp-project-root-path.log', 'w+').write(str((stdout, stderr)))
     logging.warning(f"build result {stdout} {stderr}")
     return stdout, stderr
@@ -121,9 +132,15 @@ async def flash_esp_project(project_path: str, port: str = None) -> Tuple[str, s
 
     # Build the flash command
     if port:
-        flash_cmd = f"bash -c 'source {export_script} && idf.py -p {port} flash'"
+        if os.name == 'nt':
+            flash_cmd = f'cmd.exe /c "{export_script} && idf.py -p {port} flash"'
+        else:
+            flash_cmd = f"bash -c 'source {export_script} && idf.py -p {port} flash'"
     else:
-        flash_cmd = f"bash -c 'source {export_script} && idf.py flash'"
+        if os.name == 'nt':
+            flash_cmd = f'cmd.exe /c "{export_script} && idf.py flash"'
+        else:
+            flash_cmd = f"bash -c 'source {export_script} && idf.py flash'"
 
     returncode, stdout, stderr = await run_command_async(flash_cmd)
 
@@ -173,19 +190,22 @@ async def run_esp_idf_install(idf_path: str = None) -> Tuple[str, str]:
         return "", error_msg
 
     # Build path to install.sh
-    install_script = os.path.join(esp_idf_dir, "install.sh")
+    install_script = os.path.join(esp_idf_dir, "install.bat" if os.name == "nt" else "install.sh")
 
-    # Check if install.sh exists
+    # Check if install script exists
     if not os.path.exists(install_script):
-        error_msg = f"install.sh not found at {install_script}. Please verify the ESP-IDF path is correct."
+        error_msg = f"install script not found at {install_script}. Please verify the ESP-IDF path is correct."
         logging.error(error_msg)
         return "", error_msg
 
-    # Change to ESP-IDF directory and execute install.sh
+    # Change to ESP-IDF directory and execute
     original_dir = os.getcwd()
     try:
         os.chdir(esp_idf_dir)
-        returncode, stdout, stderr = await run_command_async(f"bash {install_script}")
+        if os.name == 'nt':
+            returncode, stdout, stderr = await run_command_async(f'cmd.exe /c "{install_script}"')
+        else:
+            returncode, stdout, stderr = await run_command_async(f"bash {install_script}")
 
         # Calculate elapsed time
         elapsed_time = time.time() - start_time
@@ -241,7 +261,10 @@ async def run_pytest(project_path: str, test_path: str = ".", pytest_args: str =
         if pytest_args:
             pytest_cmd += f" {pytest_args}"
 
-        full_cmd = f"bash -c 'source {export_script} && {pytest_cmd}'"
+        if os.name == 'nt':
+            full_cmd = f'cmd.exe /c "{export_script} && {pytest_cmd}"'
+        else:
+            full_cmd = f"bash -c 'source {export_script} && {pytest_cmd}'"
 
         returncode, stdout, stderr = await run_command_async(full_cmd)
 
